@@ -373,8 +373,8 @@ contract FundraiseTest is Test {
 
         (uint256 amount, uint total) = c.profile(sender);
 
-        assert(amount == 1000000000000000000);
-        assert(total == 1000000000000000000);
+        assert(amount == 1 ether);
+        assert(total == 1 ether);
 
         vm.stopPrank();
 
@@ -394,7 +394,7 @@ contract FundraiseTest is Test {
 
         uint256 bal = address(c).balance;
 
-        assert(amountAfter == 1000000000000000000);
+        assert(amountAfter == 1 ether);
         assert(totalAfter == bal);
     }
 }
