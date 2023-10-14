@@ -2,10 +2,14 @@
 pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
+import "forge-std/console.sol";
+
 import "../src/Fundraise.sol";
+import "../src/Reentrancy.sol";
 
 contract FundraiseTest is Test {
     Fundraise public c;
+    Reentrancy public r;
 
     uint256 min = 0.3 ether;
     uint256 max = 5 ether;
@@ -29,8 +33,70 @@ contract FundraiseTest is Test {
 
         vm.startPrank(deployer);
         c = new Fundraise(min, max, soft, hard);
+        r = new Reentrancy(address(c));
         vm.stopPrank();
     }
+
+    /**
+     * Test to see if reentrancy attack contract is 
+     * pointed towards deployed Fundraiser contract;
+     */
+     function testReentrancyTarget() view public {
+        address fundraiser = address(c);
+        address target = r.getTarget();
+
+        assert(fundraiser == target);
+     }
+
+    /**
+     * Test to see the starting balance of the fundraiser
+     * is 0.
+     */
+     function testStartingFundraiserBalance() view public {
+        uint256 startingBal = 0;
+        uint256 targetBal = r.getTargetBalance();
+
+        assert(startingBal == targetBal);
+     }
+
+    /**
+    * Test re-entrancy. If we can attack with this method
+    * then `attacker` should have more than 1 eth at the end
+    * and `c` will have near-zero eth.
+    */
+     function testReentrancyAttackReverts() public {
+        address bystander = vm.addr(2);
+        address attacker = vm.addr(1337);
+        vm.deal(bystander, 5 ether);
+        vm.deal(attacker, 0.3 ether);
+
+        // bystander contributes 5 ether
+        vm.prank(bystander);
+        c.contribute{value: 5 ether}();
+        uint256 amt_before = address(c).balance;
+        console.log("Fundraiser Contract balance before: %s", amt_before);
+        assert(amt_before == 5000000000000000000);
+
+        // Now there is 5 eth in the fundraiser contract
+        // Let's attack it with re-entrancy
+        vm.prank(attacker);
+
+        // We should revert
+            // revert -> ReentrancyGuard: reentrant call
+            // revert -> ReentrancyGuard: reentrant call
+            // revert -> cannot withdraw
+            // revert -> cannot withdraw 
+        // To simulate a broken userWithdraw, comment out the 
+        // majority of the function body. Because of 0.8.19 there
+        // is also a arithmetic underflow
+        vm.expectRevert(bytes("cannot withdraw"));
+        r.attack{value: 0.3 ether}();
+
+        uint256 amt_after = address(c).balance;
+        uint256 amt_attacker = address(r).balance;
+        console.log("Fundraiser Contract balance after: %s", amt_after);
+        console.log("Attacker Contract balance after: %s", amt_attacker);
+     }
 
     /**
      * Test to ensure we can send 0.75 eth
